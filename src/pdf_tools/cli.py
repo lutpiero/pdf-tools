@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from pdf_tools import __version__
-from pdf_tools.compress import Quality
+from pdf_tools.compress import CompressionMode, Quality
 from pdf_tools.workflow import compress_pdf, default_output_path, format_size
 
 
@@ -27,6 +27,7 @@ def _cmd_compress(args: argparse.Namespace) -> int:
             output_path,
             quality=args.quality,
             recompress_images=not args.no_images,
+            mode=args.mode,
             force=args.force,
         )
     except Exception as exc:  # noqa: BLE001
@@ -110,6 +111,16 @@ def _build_parser() -> argparse.ArgumentParser:
             "low (smallest file, more loss), "
             "medium (balanced, default), "
             "high (near-lossless, moderate savings)."
+        ),
+    )
+    compress_parser.add_argument(
+        "--mode",
+        choices=[m.value for m in CompressionMode],
+        default=CompressionMode.NORMAL.value,
+        help=(
+            "Compression mode: "
+            "normal (default image/object optimisation) or "
+            "scanned (safe page-raster compression for scanned PDFs)."
         ),
     )
     compress_parser.add_argument(

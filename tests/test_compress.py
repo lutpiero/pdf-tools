@@ -8,7 +8,7 @@ from pathlib import Path
 import fitz  # PyMuPDF
 import pytest
 
-from pdf_tools.compress import CompressionResult, Quality, compress
+from pdf_tools.compress import CompressionMode, CompressionResult, Quality, compress
 from pdf_tools import gui as gui_module
 from pdf_tools.cli import main
 from pdf_tools.workflow import (
@@ -65,6 +65,25 @@ def tmp_pdf_with_image(tmp_path: Path) -> Path:
     page = doc.new_page()
     page.insert_text((72, 72), "PDF with embedded image", fontsize=14)
     page.insert_image(fitz.Rect(100, 100, 300, 300), stream=jpeg_bytes)
+    doc.save(str(pdf_path), deflate=False)
+    doc.close()
+    return pdf_path
+
+
+@pytest.fixture()
+def tmp_scanned_pdf(tmp_path: Path) -> Path:
+    """Create a scanner-like PDF with image-only pages."""
+    from PIL import Image
+    import io
+
+    pdf_path = tmp_path / "scanned.pdf"
+    doc = fitz.open()
+    for color in ((245, 245, 245), (230, 230, 230)):
+        img = Image.new("RGB", (1800, 2400), color=color)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=98)
+        page = doc.new_page(width=595, height=842)
+        page.insert_image(page.rect, stream=buf.getvalue())
     doc.save(str(pdf_path), deflate=False)
     doc.close()
     return pdf_path
@@ -148,6 +167,38 @@ class TestCompress:
         assert out.exists()
         assert result.output_size > 0
 
+    def test_scanned_mode_is_accepted(self, tmp_pdf_with_image: Path, tmp_path: Path):
+        out = tmp_path / "out_scanned.pdf"
+        result = compress(tmp_pdf_with_image, out, mode=CompressionMode.SCANNED)
+        assert out.exists()
+        assert result.output_size > 0
+
+    def test_scanned_mode_preserves_pages_and_renders(
+        self,
+        tmp_scanned_pdf: Path,
+        tmp_path: Path,
+    ):
+        out = tmp_path / "scanned_out.pdf"
+        result = compress(tmp_scanned_pdf, out, quality="low", mode="scanned")
+
+        assert result.pages == 2
+
+        source = fitz.open(str(tmp_scanned_pdf))
+        compressed = fitz.open(str(out))
+        assert compressed.page_count == source.page_count
+
+        for index in range(compressed.page_count):
+            src_rect = source[index].rect
+            out_rect = compressed[index].rect
+            assert out_rect.width == pytest.approx(src_rect.width)
+            assert out_rect.height == pytest.approx(src_rect.height)
+
+            pix = compressed[index].get_pixmap(alpha=False)
+            assert any(sample < 250 for sample in pix.samples)
+
+        source.close()
+        compressed.close()
+
     def test_file_not_found_raises(self, tmp_path: Path):
         with pytest.raises(FileNotFoundError):
             compress(tmp_path / "nonexistent.pdf", tmp_path / "out.pdf")
@@ -195,6 +246,11 @@ class TestCLI:
     def test_compress_no_images_flag(self, tmp_pdf: Path, tmp_path: Path):
         out = tmp_path / "out.pdf"
         rc = main(["compress", str(tmp_pdf), str(out), "--no-images"])
+        assert rc == 0
+
+    def test_compress_scanned_mode_flag(self, tmp_pdf_with_image: Path, tmp_path: Path):
+        out = tmp_path / "out_scanned.pdf"
+        rc = main(["compress", str(tmp_pdf_with_image), str(out), "--mode", "scanned"])
         assert rc == 0
 
     def test_compress_force_overwrite(self, tmp_pdf: Path, tmp_path: Path):
@@ -268,6 +324,13 @@ class TestWorkflow:
     ):
         output = tmp_path / "workflow.pdf"
         result = compress_pdf(tmp_pdf, output, quality="low")
+
+        assert isinstance(result, CompressionResult)
+        assert output.exists()
+
+    def test_compress_pdf_accepts_scanned_mode(self, tmp_pdf_with_image: Path, tmp_path: Path):
+        output = tmp_path / "workflow_scanned.pdf"
+        result = compress_pdf(tmp_pdf_with_image, output, mode="scanned")
 
         assert isinstance(result, CompressionResult)
         assert output.exists()

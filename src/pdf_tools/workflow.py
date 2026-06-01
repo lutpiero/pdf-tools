@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pdf_tools.compress import CompressionResult, Quality, compress
+from pdf_tools.compress import CompressionMode, CompressionResult, Quality, compress
 
 
 def format_size(num_bytes: int) -> str:
@@ -60,6 +60,7 @@ def compress_pdf(
     quality: Quality | str = Quality.MEDIUM,
     *,
     recompress_images: bool = True,
+    mode: CompressionMode | str = CompressionMode.NORMAL,
     force: bool = False,
 ) -> CompressionResult:
     """Run PDF compression after applying shared path validation."""
@@ -73,4 +74,5 @@ def compress_pdf(
         destination,
         quality=quality,
         recompress_images=recompress_images,
+        mode=mode,
     )

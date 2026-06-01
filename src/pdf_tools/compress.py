@@ -22,6 +22,13 @@ class Quality(str, Enum):
     HIGH = "high"      # Gentle compression – near-lossless, moderately smaller
 
 
+class CompressionMode(str, Enum):
+    """Compression mode presets."""
+
+    NORMAL = "normal"
+    SCANNED = "scanned"
+
+
 # JPEG quality factor (0–100) and target DPI for each preset
 _QUALITY_SETTINGS: dict[Quality, dict] = {
     Quality.LOW: {"jpeg_quality": 35, "dpi": 96},
@@ -91,12 +98,79 @@ def _recompress_image(
     return buf.getvalue()
 
 
+def _pixmap_to_jpeg(pix: fitz.Pixmap, jpeg_quality: int) -> bytes:
+    mode = "L" if pix.n == 1 else "RGB"
+    img = Image.frombytes(mode, (pix.width, pix.height), pix.samples)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=jpeg_quality, optimize=True)
+    return buf.getvalue()
+
+
+def _compress_scanned_pdf(
+    source_doc: fitz.Document,
+    target_dpi: int,
+    jpeg_quality: int,
+    errors: list[str],
+) -> fitz.Document:
+    scale = max(72, target_dpi) / 72.0
+    matrix = fitz.Matrix(scale, scale)
+    output_doc = fitz.open()
+
+    for page_index in range(source_doc.page_count):
+        page = source_doc[page_index]
+        try:
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            jpeg_bytes = _pixmap_to_jpeg(pix, jpeg_quality)
+            output_page = output_doc.new_page(
+                width=page.rect.width,
+                height=page.rect.height,
+            )
+            output_page.insert_image(output_page.rect, stream=jpeg_bytes)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"Page {page_index + 1}: {exc}")
+            output_doc.insert_pdf(source_doc, from_page=page_index, to_page=page_index)
+
+    return output_doc
+
+
+def _save_document(
+    doc: fitz.Document,
+    input_path: Path,
+    output_path: Path,
+    save_kwargs: dict[str, int | bool],
+) -> None:
+    same_path = input_path.resolve() == output_path.resolve()
+    if same_path:
+        tmp_fd, tmp_name = tempfile.mkstemp(
+            dir=output_path.parent, suffix=".tmp.pdf"
+        )
+        os.close(tmp_fd)
+        try:
+            doc.save(tmp_name, **save_kwargs)
+            os.replace(tmp_name, str(output_path))
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+        finally:
+            doc.close()
+        return
+
+    try:
+        doc.save(str(output_path), **save_kwargs)
+    finally:
+        doc.close()
+
+
 def compress(
     input_path: str | Path,
     output_path: str | Path,
     quality: Quality | str = Quality.MEDIUM,
     *,
     recompress_images: bool = True,
+    mode: CompressionMode | str = CompressionMode.NORMAL,
 ) -> CompressionResult:
     """Compress *input_path* and write the result to *output_path*.
 
@@ -112,6 +186,10 @@ def compress(
     recompress_images:
         When ``True`` (default) embedded images are recompressed according to
         the chosen quality preset, which typically yields the biggest savings.
+    mode:
+        Compression mode: ``normal`` (default) uses existing structural/image
+        stream compression, ``scanned`` rebuilds pages from recompressed page
+        images to safely handle scanned PDFs.
 
     Returns
     -------
@@ -127,6 +205,7 @@ def compress(
         raise ValueError(f"Input path is not a file: {input_path}")
 
     quality = Quality(quality)
+    mode = CompressionMode(mode)
     settings = _QUALITY_SETTINGS[quality]
     jpeg_quality: int = settings["jpeg_quality"]
     target_dpi: int = settings["dpi"]
@@ -137,7 +216,11 @@ def compress(
     doc = fitz.open(str(input_path))
     pages = doc.page_count
 
-    if recompress_images:
+    if mode is CompressionMode.SCANNED and recompress_images:
+        scanned_doc = _compress_scanned_pdf(doc, target_dpi, jpeg_quality, errors)
+        doc.close()
+        doc = scanned_doc
+    elif recompress_images:
         for page_index in range(pages):
             page = doc[page_index]
             for img_info in page.get_images(full=True):
@@ -158,45 +241,18 @@ def compress(
                         f"Page {page_index + 1}, image xref {xref}: {exc}"
                     )
 
-    # Save with maximum structural and stream compression:
-    # garbage=4  – full cross-reference rebuild + remove unreachable objects
-    # deflate=True – apply flate (zlib) compression to all streams
-    # clean=True  – sanitise content streams
-    same_path = input_path.resolve() == output_path.resolve()
-    if same_path:
-        # PyMuPDF cannot save non-incrementally to the source file; write to a
-        # temporary file in the same directory and then atomically replace.
-        tmp_fd, tmp_name = tempfile.mkstemp(
-            dir=output_path.parent, suffix=".tmp.pdf"
-        )
-        os.close(tmp_fd)
-        try:
-            doc.save(
-                tmp_name,
-                garbage=4,
-                deflate=True,
-                clean=True,
-                deflate_images=True,
-                deflate_fonts=True,
-            )
-            doc.close()
-            os.replace(tmp_name, str(output_path))
-        except Exception:
-            try:
-                os.unlink(tmp_name)
-            except OSError:
-                pass
-            raise
-    else:
-        doc.save(
-            str(output_path),
-            garbage=4,
-            deflate=True,
-            clean=True,
-            deflate_images=True,
-            deflate_fonts=True,
-        )
-        doc.close()
+    _save_document(
+        doc,
+        input_path,
+        output_path,
+        {
+            "garbage": 4,
+            "deflate": True,
+            "clean": True,
+            "deflate_images": True,
+            "deflate_fonts": True,
+        },
+    )
 
     output_size = output_path.stat().st_size
 
