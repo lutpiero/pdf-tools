@@ -79,7 +79,7 @@ def _cmd_gui(_args: argparse.Namespace) -> int:
         from pdf_tools.gui import launch_gui
 
         launch_gui()
-    except Exception as exc:  # noqa: BLE001
+    except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     return 0

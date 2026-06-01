@@ -192,7 +192,7 @@ def launch_gui() -> None:
                     recompress_images=not self.no_images_var.get(),
                     force=self.force_var.get(),
                 )
-            except Exception as exc:  # noqa: BLE001
+            except (OSError, ValueError, RuntimeError) as exc:
                 self.status_var.set("Compression failed.")
                 messagebox.showerror("Compression failed", str(exc))
                 return
@@ -209,7 +209,7 @@ def main() -> int:
     """Run the GUI entry point."""
     try:
         launch_gui()
-    except Exception as exc:  # noqa: BLE001
+    except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     return 0
