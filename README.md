@@ -30,9 +30,25 @@ pip install .
 
 The `pdf-tools` and `pdf-tools-gui` commands are now available in your PATH.
 
+> The GUI runs on Tkinter. If your Python distribution does not include Tkinter,
+> install the matching Tk package for your OS/distribution.
+>
+> Install **PyMuPDF** via `pip install pymupdf`. Do **not** install the unrelated
+> `fitz` package from PyPI.
+
 ### Standalone executable (no Python required)
 
-You can bundle the tool into a single executable for Windows, macOS, or Linux using [PyInstaller](https://pyinstaller.org/):
+The Windows GUI executable is built automatically by the
+**Build Windows GUI executable** GitHub Actions workflow on every push and can
+also be built manually from the **Actions** tab (`workflow_dispatch`).
+
+To download it:
+
+1. Open the workflow run in the repository **Actions** tab.
+2. Download the `pdf-tools-gui-windows` artifact.
+3. Extract the artifact and run `pdf-tools-gui.exe`.
+
+You can also build locally with [PyInstaller](https://pyinstaller.org/):
 
 ```bash
 pip install pyinstaller
@@ -68,8 +84,8 @@ The first GUI release focuses on PDF compression. It lets you:
 - optionally overwrite an existing output file
 - read friendly success, warning, and error messages in the window
 
-> **Linux note:** if Tkinter is not installed with your Python distribution,
-> install your distro's Tk package and run the GUI command again.
+> If Tkinter is not installed with your Python distribution, install your
+> OS/distribution Tk package and run the GUI command again.
 
 ### Command line
 
