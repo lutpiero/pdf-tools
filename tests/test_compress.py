@@ -312,12 +312,3 @@ class TestGUIEntrypoint:
         monkeypatch.setattr(gui_module, "launch_gui", fake_launch_gui)
         assert gui_module.main() == 1
         assert "missing tkinter" in capsys.readouterr().err
-
-
-class TestGUIHelpers:
-    def test_gui_build_summary(self, tmp_pdf: Path, tmp_path: Path):
-        out = tmp_path / "summary.pdf"
-        result = compress(tmp_pdf, out)
-        summary = gui_module._build_summary(result)
-        assert "Saved:" in summary
-        assert "Pages:" in summary

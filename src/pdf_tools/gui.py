@@ -115,7 +115,7 @@ def launch_gui() -> None:
                 row=8, column=0, sticky="w", pady=(16, 12)
             )
 
-            ttk.Label(self, textvariable=self.status_var, foreground="#555555").grid(
+            ttk.Label(self, textvariable=self.status_var).grid(
                 row=9, column=0, columnspan=2, sticky="w"
             )
 
