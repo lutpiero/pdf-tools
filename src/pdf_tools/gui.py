@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from pdf_tools.compress import CompressionResult, Quality
+from pdf_tools.compress import CompressionMode, CompressionResult, Quality
 from pdf_tools.workflow import compress_pdf, default_output_path, format_size
 
 
@@ -58,6 +58,7 @@ def launch_gui() -> None:
             self.input_var = tk.StringVar()
             self.output_var = tk.StringVar()
             self.quality_var = tk.StringVar(value=Quality.MEDIUM.value)
+            self.mode_var = tk.StringVar(value=CompressionMode.NORMAL.value)
             self.no_images_var = tk.BooleanVar(value=False)
             self.force_var = tk.BooleanVar(value=False)
             self.status_var = tk.StringVar(
@@ -100,16 +101,24 @@ def launch_gui() -> None:
                 state="readonly",
             ).grid(row=5, column=0, sticky="w")
 
+            ttk.Label(self, text="Mode").grid(row=4, column=1, sticky="w", pady=(12, 0))
+            ttk.Combobox(
+                self,
+                textvariable=self.mode_var,
+                values=[mode.value for mode in CompressionMode],
+                state="readonly",
+            ).grid(row=5, column=1, sticky="w")
+
             ttk.Checkbutton(
                 self,
                 text="Skip image recompression",
                 variable=self.no_images_var,
-            ).grid(row=6, column=0, sticky="w", pady=(12, 0))
+            ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(12, 0))
             ttk.Checkbutton(
                 self,
                 text="Overwrite output file if it exists",
                 variable=self.force_var,
-            ).grid(row=7, column=0, sticky="w")
+            ).grid(row=7, column=0, columnspan=2, sticky="w")
 
             ttk.Button(self, text="Compress PDF", command=self._compress).grid(
                 row=8, column=0, sticky="w", pady=(16, 12)
@@ -181,6 +190,7 @@ def launch_gui() -> None:
                     output_path,
                     quality=self.quality_var.get(),
                     recompress_images=not self.no_images_var.get(),
+                    mode=self.mode_var.get(),
                     force=self.force_var.get(),
                 )
             except (OSError, ValueError, RuntimeError) as exc:

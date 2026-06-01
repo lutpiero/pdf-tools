@@ -80,6 +80,7 @@ The first GUI release focuses on PDF compression. It lets you:
 - choose an input PDF
 - pick an output file
 - select compression quality
+- choose compression mode (`normal` or `scanned`)
 - optionally skip image recompression
 - optionally overwrite an existing output file
 - read friendly success, warning, and error messages in the window
@@ -104,6 +105,7 @@ pdf-tools compress [OPTIONS] INPUT [OUTPUT]
 | `INPUT` | Path to the source PDF file |
 | `OUTPUT` *(optional)* | Path for the compressed output. Defaults to `<stem>_compressed.pdf` next to the input |
 | `-q`, `--quality` | Preset: `low` · `medium` (default) · `high` |
+| `--mode` | Compression mode: `normal` (default) · `scanned` (safe for scanned/image-based PDFs) |
 | `--no-images` | Skip image recompression (structural optimisation only) |
 | `-f`, `--force` | Overwrite the output file if it already exists |
 
@@ -121,6 +123,9 @@ pdf-tools compress report.pdf report_small.pdf --quality low
 
 # Near-lossless compression (best quality)
 pdf-tools compress report.pdf --quality high
+
+# Safe scanned-document compression mode
+pdf-tools compress scanned.pdf scanned_small.pdf --mode scanned
 
 # Skip image recompression
 pdf-tools compress report.pdf --no-images
