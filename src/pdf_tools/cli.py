@@ -54,6 +54,8 @@ def _cmd_compress(args: argparse.Namespace) -> int:
         )
 
     return 0
+
+
 def _cmd_gui(_args: argparse.Namespace) -> int:
     try:
         from pdf_tools.gui import launch_gui

@@ -71,6 +71,8 @@ The first GUI release focuses on PDF compression. It lets you:
 > **Linux note:** if Tkinter is not installed with your Python distribution,
 > install your distro's Tk package and run the GUI command again.
 
+### Command line
+
 ```
 pdf-tools <command> [options]
 ```
