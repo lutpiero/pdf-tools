@@ -293,3 +293,24 @@ class TestHelpers:
         summary = gui_module._build_summary(result)
         assert "Saved:" in summary
         assert "Pages:" in summary
+
+
+class TestGUIEntrypoint:
+    def test_gui_main_returns_zero_when_launch_succeeds(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(gui_module, "launch_gui", lambda: None)
+        assert gui_module.main() == 0
+
+    def test_gui_main_returns_error_code_on_runtime_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ):
+        def fake_launch_gui() -> None:
+            raise RuntimeError("missing tkinter")
+
+        monkeypatch.setattr(gui_module, "launch_gui", fake_launch_gui)
+        assert gui_module.main() == 1
+        assert "missing tkinter" in capsys.readouterr().err

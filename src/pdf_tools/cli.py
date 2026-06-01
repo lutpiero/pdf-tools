@@ -143,14 +143,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Overwrite the output file if it already exists.",
     )
+    compress_parser.set_defaults(handler=_cmd_compress)
+
     gui_parser = subparsers.add_parser(
         "gui",
         help="Launch the desktop GUI.",
         description="Open the cross-platform desktop interface for pdf-tools.",
     )
     gui_parser.set_defaults(handler=_cmd_gui)
-
-    compress_parser.set_defaults(handler=_cmd_compress)
 
     return parser
 
