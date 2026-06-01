@@ -9,7 +9,9 @@ import fitz  # PyMuPDF
 import pytest
 
 from pdf_tools.compress import CompressionResult, Quality, compress
+from pdf_tools import gui as gui_module
 from pdf_tools.cli import main, _default_output, _format_size
+from pdf_tools.workflow import compress_pdf, prepare_compression_paths
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +216,57 @@ class TestCLI:
         rc = main(["compress", str(tmp_pdf), str(tmp_pdf), "--force"])
         assert rc == 0
 
+    def test_gui_subcommand_launches_gui(self, monkeypatch: pytest.MonkeyPatch):
+        called = {"value": False}
+
+        def fake_launch_gui() -> None:
+            called["value"] = True
+
+        monkeypatch.setattr(gui_module, "launch_gui", fake_launch_gui)
+        rc = main(["gui"])
+        assert rc == 0
+        assert called["value"] is True
+
+    def test_gui_subcommand_returns_error_code_on_failure(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        def fake_launch_gui() -> None:
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(gui_module, "launch_gui", fake_launch_gui)
+        rc = main(["gui"])
+        assert rc == 1
+
+
+class TestWorkflow:
+    def test_prepare_compression_paths_uses_default_output(self, tmp_pdf: Path):
+        source, destination = prepare_compression_paths(tmp_pdf)
+        assert source == tmp_pdf
+        assert destination == tmp_pdf.with_name("sample_compressed.pdf")
+
+    def test_prepare_compression_paths_rejects_existing_output_without_force(
+        self,
+        tmp_pdf: Path,
+        tmp_path: Path,
+    ):
+        output = tmp_path / "out.pdf"
+        output.write_bytes(b"already-here")
+
+        with pytest.raises(FileExistsError):
+            prepare_compression_paths(tmp_pdf, output)
+
+    def test_compress_pdf_reuses_validation_and_returns_result(
+        self,
+        tmp_pdf: Path,
+        tmp_path: Path,
+    ):
+        output = tmp_path / "workflow.pdf"
+        result = compress_pdf(tmp_pdf, output, quality="low")
+
+        assert isinstance(result, CompressionResult)
+        assert output.exists()
+
 
 # ---------------------------------------------------------------------------
 # Helper function tests
@@ -233,3 +286,10 @@ class TestHelpers:
 
     def test_format_size_mb(self):
         assert "MB" in _format_size(2 * 1024 * 1024)
+
+    def test_gui_build_summary(self, tmp_pdf: Path, tmp_path: Path):
+        out = tmp_path / "summary.pdf"
+        result = compress(tmp_pdf, out)
+        summary = gui_module._build_summary(result)
+        assert "Saved:" in summary
+        assert "Pages:" in summary

@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 from pdf_tools import __version__
-from pdf_tools.compress import Quality, compress
+from pdf_tools.compress import Quality
+from pdf_tools.workflow import compress_pdf, default_output_path
 
 
 # ---------------------------------------------------------------------------
@@ -31,34 +32,15 @@ def _cmd_compress(args: argparse.Namespace) -> int:
     input_path = Path(args.input)
     output_path = Path(args.output) if args.output else _default_output(input_path)
 
-    if output_path == input_path and not args.force:
-        print(
-            "Error: output path is the same as input path.  "
-            "Use --force to overwrite in place.",
-            file=sys.stderr,
-        )
-        return 1
-
-    if not input_path.exists():
-        print(f"Error: input file not found: {input_path}", file=sys.stderr)
-        return 1
-
-    if output_path.exists() and not args.force:
-        print(
-            f"Error: output file already exists: {output_path}.  "
-            "Use --force to overwrite.",
-            file=sys.stderr,
-        )
-        return 1
-
     print(f"Compressing '{input_path}' → '{output_path}'  [quality: {args.quality}]")
 
     try:
-        result = compress(
+        result = compress_pdf(
             input_path,
             output_path,
             quality=args.quality,
             recompress_images=not args.no_images,
+            force=args.force,
         )
     except Exception as exc:  # noqa: BLE001
         print(f"Error: {exc}", file=sys.stderr)
@@ -89,7 +71,18 @@ def _cmd_compress(args: argparse.Namespace) -> int:
 
 def _default_output(input_path: Path) -> Path:
     """Return ``<stem>_compressed.<suffix>`` next to the input file."""
-    return input_path.with_name(f"{input_path.stem}_compressed{input_path.suffix}")
+    return default_output_path(input_path)
+
+
+def _cmd_gui(_args: argparse.Namespace) -> int:
+    try:
+        from pdf_tools.gui import launch_gui
+
+        launch_gui()
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +143,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Overwrite the output file if it already exists.",
     )
+    gui_parser = subparsers.add_parser(
+        "gui",
+        help="Launch the desktop GUI.",
+        description="Open the cross-platform desktop interface for pdf-tools.",
+    )
+    gui_parser.set_defaults(handler=_cmd_gui)
+
+    compress_parser.set_defaults(handler=_cmd_compress)
 
     return parser
 
@@ -162,11 +163,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "compress":
-        return _cmd_compress(args)
-
-    parser.print_help()
-    return 1
+    handler = getattr(args, "handler", None)
+    if handler is None:
+        parser.print_help()
+        return 1
+    return handler(args)
 
 
 if __name__ == "__main__":
