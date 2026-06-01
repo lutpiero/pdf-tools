@@ -1,6 +1,6 @@
 # pdf-tools
 
-A **standalone, cross-platform PDF tool** with both a command-line interface and a desktop GUI for Windows and Linux.
+A **standalone, cross-platform PDF tool** with both a command-line interface and a desktop GUI, with the first GUI release documented for Windows and Linux.
 
 ---
 

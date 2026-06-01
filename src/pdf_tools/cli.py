@@ -12,21 +12,12 @@ from pdf_tools.workflow import compress_pdf, default_output_path, format_size
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _format_size(num_bytes: int) -> str:
-    """Return a human-readable file size string."""
-    return format_size(num_bytes)
-
-
-# ---------------------------------------------------------------------------
 # Sub-command: compress
 # ---------------------------------------------------------------------------
 
 def _cmd_compress(args: argparse.Namespace) -> int:
     input_path = Path(args.input)
-    output_path = Path(args.output) if args.output else _default_output(input_path)
+    output_path = Path(args.output) if args.output else default_output_path(input_path)
 
     print(f"Compressing '{input_path}' → '{output_path}'  [quality: {args.quality}]")
 
@@ -63,13 +54,6 @@ def _cmd_compress(args: argparse.Namespace) -> int:
         )
 
     return 0
-
-
-def _default_output(input_path: Path) -> Path:
-    """Return ``<stem>_compressed.<suffix>`` next to the input file."""
-    return default_output_path(input_path)
-
-
 def _cmd_gui(_args: argparse.Namespace) -> int:
     try:
         from pdf_tools.gui import launch_gui

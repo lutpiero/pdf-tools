@@ -10,8 +10,13 @@ import pytest
 
 from pdf_tools.compress import CompressionResult, Quality, compress
 from pdf_tools import gui as gui_module
-from pdf_tools.cli import main, _default_output, _format_size
-from pdf_tools.workflow import compress_pdf, prepare_compression_paths
+from pdf_tools.cli import main
+from pdf_tools.workflow import (
+    compress_pdf,
+    default_output_path,
+    format_size,
+    prepare_compression_paths,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -275,17 +280,17 @@ class TestWorkflow:
 class TestHelpers:
     def test_default_output_name(self, tmp_path: Path):
         p = tmp_path / "document.pdf"
-        result = _default_output(p)
+        result = default_output_path(p)
         assert result == tmp_path / "document_compressed.pdf"
 
     def test_format_size_bytes(self):
-        assert _format_size(512) == "512.0 B"
+        assert format_size(512) == "512.0 B"
 
     def test_format_size_kb(self):
-        assert "KB" in _format_size(2048)
+        assert "KB" in format_size(2048)
 
     def test_format_size_mb(self):
-        assert "MB" in _format_size(2 * 1024 * 1024)
+        assert "MB" in format_size(2 * 1024 * 1024)
 
 
 class TestGUIEntrypoint:
