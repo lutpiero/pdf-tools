@@ -68,7 +68,8 @@ The first GUI release focuses on PDF compression. It lets you:
 - optionally overwrite an existing output file
 - read friendly success, warning, and error messages in the window
 
-If you are on Linux and Tkinter is not installed with your Python distribution, install the system Tk package for your distro and run the command again.
+> **Linux note:** if Tkinter is not installed with your Python distribution,
+> install your distro's Tk package and run the GUI command again.
 
 ```
 pdf-tools <command> [options]

@@ -6,17 +6,7 @@ import sys
 from pathlib import Path
 
 from pdf_tools.compress import CompressionResult, Quality
-from pdf_tools.workflow import compress_pdf, default_output_path
-
-
-def _format_size(num_bytes: int) -> str:
-    """Return a human-readable file size string."""
-    size = float(num_bytes)
-    for unit in ("B", "KB", "MB", "GB"):
-        if abs(size) < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} TB"
+from pdf_tools.workflow import compress_pdf, default_output_path, format_size
 
 
 def _build_summary(result: CompressionResult) -> str:
@@ -24,18 +14,18 @@ def _build_summary(result: CompressionResult) -> str:
     lines = [
         f"Saved: {result.output_path}",
         f"Pages: {result.pages}",
-        f"Before: {_format_size(result.input_size)}",
-        f"After: {_format_size(result.output_size)}",
+        f"Before: {format_size(result.input_size)}",
+        f"After: {format_size(result.output_size)}",
     ]
     if result.reduction_percent >= 0:
         lines.append(
             "Saved space: "
-            f"{_format_size(result.saved_bytes)} ({result.reduction_percent:.1f}% smaller)"
+            f"{format_size(result.saved_bytes)} ({result.reduction_percent:.1f}% smaller)"
         )
     else:
         lines.append(
             "Output is larger by "
-            f"{_format_size(-result.saved_bytes)} ({-result.reduction_percent:.1f}%)"
+            f"{format_size(-result.saved_bytes)} ({-result.reduction_percent:.1f}%)"
         )
     if result.errors:
         lines.append("")

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pdf_tools import __version__
 from pdf_tools.compress import Quality
-from pdf_tools.workflow import compress_pdf, default_output_path
+from pdf_tools.workflow import compress_pdf, default_output_path, format_size
 
 
 # ---------------------------------------------------------------------------
@@ -17,12 +17,7 @@ from pdf_tools.workflow import compress_pdf, default_output_path
 
 def _format_size(num_bytes: int) -> str:
     """Return a human-readable file size string."""
-    size = float(num_bytes)
-    for unit in ("B", "KB", "MB", "GB"):
-        if abs(size) < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} TB"
+    return format_size(num_bytes)
 
 
 # ---------------------------------------------------------------------------
@@ -52,18 +47,18 @@ def _cmd_compress(args: argparse.Namespace) -> int:
         for err in result.errors:
             print(f"  • {err}")
 
-    in_s = _format_size(result.input_size)
-    out_s = _format_size(result.output_size)
+    in_s = format_size(result.input_size)
+    out_s = format_size(result.output_size)
     pct = result.reduction_percent
 
     print(f"Pages   : {result.pages}")
     print(f"Before  : {in_s}")
     print(f"After   : {out_s}")
     if pct >= 0:
-        print(f"Saved   : {_format_size(result.saved_bytes)} ({pct:.1f}% smaller)")
+        print(f"Saved   : {format_size(result.saved_bytes)} ({pct:.1f}% smaller)")
     else:
         print(
-            f"Note    : output is {_format_size(-result.saved_bytes)} "
+            f"Note    : output is {format_size(-result.saved_bytes)} "
             f"larger ({-pct:.1f}%) – the source was already well-compressed."
         )
 

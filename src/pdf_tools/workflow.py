@@ -7,6 +7,16 @@ from pathlib import Path
 from pdf_tools.compress import CompressionResult, Quality, compress
 
 
+def format_size(num_bytes: int) -> str:
+    """Return a human-readable file size string."""
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if abs(size) < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
 def default_output_path(input_path: str | Path) -> Path:
     """Return ``<stem>_compressed.<suffix>`` next to the input file."""
     input_path = Path(input_path)
