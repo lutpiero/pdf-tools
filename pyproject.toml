@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 pdf-tools = "pdf_tools.cli:main"
+pdf-tools-gui = "pdf_tools.gui:main"
 
 [project.optional-dependencies]
 dev = [

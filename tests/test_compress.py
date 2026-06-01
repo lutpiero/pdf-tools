@@ -9,7 +9,14 @@ import fitz  # PyMuPDF
 import pytest
 
 from pdf_tools.compress import CompressionResult, Quality, compress
-from pdf_tools.cli import main, _default_output, _format_size
+from pdf_tools import gui as gui_module
+from pdf_tools.cli import main
+from pdf_tools.workflow import (
+    compress_pdf,
+    default_output_path,
+    format_size,
+    prepare_compression_paths,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +221,57 @@ class TestCLI:
         rc = main(["compress", str(tmp_pdf), str(tmp_pdf), "--force"])
         assert rc == 0
 
+    def test_gui_subcommand_launches_gui(self, monkeypatch: pytest.MonkeyPatch):
+        called = {"value": False}
+
+        def fake_launch_gui() -> None:
+            called["value"] = True
+
+        monkeypatch.setattr(gui_module, "launch_gui", fake_launch_gui)
+        rc = main(["gui"])
+        assert rc == 0
+        assert called["value"] is True
+
+    def test_gui_subcommand_returns_error_code_on_failure(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        def fake_launch_gui() -> None:
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(gui_module, "launch_gui", fake_launch_gui)
+        rc = main(["gui"])
+        assert rc == 1
+
+
+class TestWorkflow:
+    def test_prepare_compression_paths_uses_default_output(self, tmp_pdf: Path):
+        source, destination = prepare_compression_paths(tmp_pdf)
+        assert source == tmp_pdf
+        assert destination == tmp_pdf.with_name("sample_compressed.pdf")
+
+    def test_prepare_compression_paths_rejects_existing_output_without_force(
+        self,
+        tmp_pdf: Path,
+        tmp_path: Path,
+    ):
+        output = tmp_path / "out.pdf"
+        output.write_bytes(b"already-here")
+
+        with pytest.raises(FileExistsError):
+            prepare_compression_paths(tmp_pdf, output)
+
+    def test_compress_pdf_reuses_validation_and_returns_result(
+        self,
+        tmp_pdf: Path,
+        tmp_path: Path,
+    ):
+        output = tmp_path / "workflow.pdf"
+        result = compress_pdf(tmp_pdf, output, quality="low")
+
+        assert isinstance(result, CompressionResult)
+        assert output.exists()
+
 
 # ---------------------------------------------------------------------------
 # Helper function tests
@@ -222,14 +280,35 @@ class TestCLI:
 class TestHelpers:
     def test_default_output_name(self, tmp_path: Path):
         p = tmp_path / "document.pdf"
-        result = _default_output(p)
+        result = default_output_path(p)
         assert result == tmp_path / "document_compressed.pdf"
 
     def test_format_size_bytes(self):
-        assert _format_size(512) == "512.0 B"
+        assert format_size(512) == "512.0 B"
 
     def test_format_size_kb(self):
-        assert "KB" in _format_size(2048)
+        assert "KB" in format_size(2048)
 
     def test_format_size_mb(self):
-        assert "MB" in _format_size(2 * 1024 * 1024)
+        assert "MB" in format_size(2 * 1024 * 1024)
+
+
+class TestGUIEntrypoint:
+    def test_gui_main_returns_zero_when_launch_succeeds(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(gui_module, "launch_gui", lambda: None)
+        assert gui_module.main() == 0
+
+    def test_gui_main_returns_error_code_on_runtime_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ):
+        def fake_launch_gui() -> None:
+            raise RuntimeError("missing tkinter")
+
+        monkeypatch.setattr(gui_module, "launch_gui", fake_launch_gui)
+        assert gui_module.main() == 1
+        assert "missing tkinter" in capsys.readouterr().err

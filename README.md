@@ -1,6 +1,6 @@
 # pdf-tools
 
-A **standalone, cross-platform CLI tool** to compress (and, in future releases, edit and highlight) PDF files.
+A **standalone, cross-platform PDF tool** with both a command-line interface and a desktop GUI, with the first GUI release documented for Windows and Linux.
 
 ---
 
@@ -14,6 +14,7 @@ A **standalone, cross-platform CLI tool** to compress (and, in future releases, 
 - Optional **skip-image** flag for structure-only compression
 - Safe **in-place** overwrite support (`--force`)
 - Clear **before/after size** summary in the terminal
+- Simple **desktop GUI** built with Tkinter for Windows and Linux
 
 ---
 
@@ -27,7 +28,7 @@ cd pdf-tools
 pip install .
 ```
 
-The `pdf-tools` command is now available in your PATH.
+The `pdf-tools` and `pdf-tools-gui` commands are now available in your PATH.
 
 ### Standalone executable (no Python required)
 
@@ -36,12 +37,41 @@ You can bundle the tool into a single executable for Windows, macOS, or Linux us
 ```bash
 pip install pyinstaller
 pyinstaller --onefile --name pdf-tools src/pdf_tools/cli.py
-# The executable is written to dist/pdf-tools (or dist\pdf-tools.exe on Windows)
+pyinstaller --onefile --windowed --name pdf-tools-gui src/pdf_tools/gui.py
+# The executables are written to the dist/ directory
 ```
 
 ---
 
 ## Usage
+
+### Desktop GUI
+
+Launch the graphical desktop app with either command:
+
+```bash
+pdf-tools-gui
+```
+
+or:
+
+```bash
+pdf-tools gui
+```
+
+The first GUI release focuses on PDF compression. It lets you:
+
+- choose an input PDF
+- pick an output file
+- select compression quality
+- optionally skip image recompression
+- optionally overwrite an existing output file
+- read friendly success, warning, and error messages in the window
+
+> **Linux note:** if Tkinter is not installed with your Python distribution,
+> install your distro's Tk package and run the GUI command again.
+
+### Command line
 
 ```
 pdf-tools <command> [options]

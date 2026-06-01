@@ -7,20 +7,8 @@ import sys
 from pathlib import Path
 
 from pdf_tools import __version__
-from pdf_tools.compress import Quality, compress
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _format_size(num_bytes: int) -> str:
-    """Return a human-readable file size string."""
-    for unit in ("B", "KB", "MB", "GB"):
-        if abs(num_bytes) < 1024:
-            return f"{num_bytes:.1f} {unit}"
-        num_bytes /= 1024  # type: ignore[assignment]
-    return f"{num_bytes:.1f} TB"
+from pdf_tools.compress import Quality
+from pdf_tools.workflow import compress_pdf, default_output_path, format_size
 
 
 # ---------------------------------------------------------------------------
@@ -29,36 +17,17 @@ def _format_size(num_bytes: int) -> str:
 
 def _cmd_compress(args: argparse.Namespace) -> int:
     input_path = Path(args.input)
-    output_path = Path(args.output) if args.output else _default_output(input_path)
-
-    if output_path == input_path and not args.force:
-        print(
-            "Error: output path is the same as input path.  "
-            "Use --force to overwrite in place.",
-            file=sys.stderr,
-        )
-        return 1
-
-    if not input_path.exists():
-        print(f"Error: input file not found: {input_path}", file=sys.stderr)
-        return 1
-
-    if output_path.exists() and not args.force:
-        print(
-            f"Error: output file already exists: {output_path}.  "
-            "Use --force to overwrite.",
-            file=sys.stderr,
-        )
-        return 1
+    output_path = Path(args.output) if args.output else default_output_path(input_path)
 
     print(f"Compressing '{input_path}' → '{output_path}'  [quality: {args.quality}]")
 
     try:
-        result = compress(
+        result = compress_pdf(
             input_path,
             output_path,
             quality=args.quality,
             recompress_images=not args.no_images,
+            force=args.force,
         )
     except Exception as exc:  # noqa: BLE001
         print(f"Error: {exc}", file=sys.stderr)
@@ -69,27 +38,33 @@ def _cmd_compress(args: argparse.Namespace) -> int:
         for err in result.errors:
             print(f"  • {err}")
 
-    in_s = _format_size(result.input_size)
-    out_s = _format_size(result.output_size)
+    in_s = format_size(result.input_size)
+    out_s = format_size(result.output_size)
     pct = result.reduction_percent
 
     print(f"Pages   : {result.pages}")
     print(f"Before  : {in_s}")
     print(f"After   : {out_s}")
     if pct >= 0:
-        print(f"Saved   : {_format_size(result.saved_bytes)} ({pct:.1f}% smaller)")
+        print(f"Saved   : {format_size(result.saved_bytes)} ({pct:.1f}% smaller)")
     else:
         print(
-            f"Note    : output is {_format_size(-result.saved_bytes)} "
+            f"Note    : output is {format_size(-result.saved_bytes)} "
             f"larger ({-pct:.1f}%) – the source was already well-compressed."
         )
 
     return 0
 
 
-def _default_output(input_path: Path) -> Path:
-    """Return ``<stem>_compressed.<suffix>`` next to the input file."""
-    return input_path.with_name(f"{input_path.stem}_compressed{input_path.suffix}")
+def _cmd_gui(_args: argparse.Namespace) -> int:
+    try:
+        from pdf_tools.gui import launch_gui
+
+        launch_gui()
+    except RuntimeError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +125,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Overwrite the output file if it already exists.",
     )
+    compress_parser.set_defaults(handler=_cmd_compress)
+
+    gui_parser = subparsers.add_parser(
+        "gui",
+        help="Launch the desktop GUI.",
+        description="Open the cross-platform desktop interface for pdf-tools.",
+    )
+    gui_parser.set_defaults(handler=_cmd_gui)
 
     return parser
 
@@ -162,11 +145,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "compress":
-        return _cmd_compress(args)
-
-    parser.print_help()
-    return 1
+    if not hasattr(args, "handler"):
+        parser.print_help()
+        return 1
+    return args.handler(args)
 
 
 if __name__ == "__main__":
