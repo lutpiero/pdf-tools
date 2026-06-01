@@ -17,11 +17,12 @@ from pdf_tools.workflow import compress_pdf, default_output_path
 
 def _format_size(num_bytes: int) -> str:
     """Return a human-readable file size string."""
+    size = float(num_bytes)
     for unit in ("B", "KB", "MB", "GB"):
-        if abs(num_bytes) < 1024:
-            return f"{num_bytes:.1f} {unit}"
-        num_bytes /= 1024  # type: ignore[assignment]
-    return f"{num_bytes:.1f} TB"
+        if abs(size) < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 # ---------------------------------------------------------------------------
@@ -163,11 +164,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    handler = getattr(args, "handler", None)
-    if handler is None:
+    if not hasattr(args, "handler"):
         parser.print_help()
         return 1
-    return handler(args)
+    return args.handler(args)
 
 
 if __name__ == "__main__":

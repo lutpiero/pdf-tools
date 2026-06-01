@@ -11,11 +11,12 @@ from pdf_tools.workflow import compress_pdf, default_output_path
 
 def _format_size(num_bytes: int) -> str:
     """Return a human-readable file size string."""
+    size = float(num_bytes)
     for unit in ("B", "KB", "MB", "GB"):
-        if abs(num_bytes) < 1024:
-            return f"{num_bytes:.1f} {unit}"
-        num_bytes /= 1024  # type: ignore[assignment]
-    return f"{num_bytes:.1f} TB"
+        if abs(size) < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 def _build_summary(result: CompressionResult) -> str:
