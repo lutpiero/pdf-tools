@@ -17,6 +17,9 @@ A **standalone, cross-platform PDF tool** with both a command-line interface and
 - **PDF to Word** — converts PDF to `.docx`, preserving headings, paragraphs,
   spacing, images, and tables as closely as possible
   - Best-effort background **watermark removal** option
+  - **OCR support** (`--ocr`) for scanned / image-only PDFs via
+    [EasyOCR](https://github.com/JaidedAI/EasyOCR) — extracts searchable text
+    from scanned pages while keeping existing text layers untouched
 - Simple **desktop GUI** built with Tkinter for Windows and Linux
 
 ---
@@ -32,6 +35,12 @@ pip install .
 ```
 
 The `pdf-tools` and `pdf-tools-gui` commands are now available in your PATH.
+
+To enable **OCR support** for scanned PDFs, install the optional `ocr` extra:
+
+```bash
+pip install "pdf-tools[ocr]"
+```
 
 > The GUI runs on Tkinter. If your Python distribution does not include Tkinter,
 > install the matching Tk package for your OS/distribution.
@@ -173,6 +182,7 @@ images, and tables as closely as possible using
 |---|---|
 | `INPUT` | Path to the source PDF file |
 | `OUTPUT` *(optional)* | Path for the `.docx` output. Defaults to `<stem>.docx` next to the input |
+| `--ocr` | Enable OCR for scanned / image-only pages using EasyOCR. Pages that already contain an embedded text layer are converted using that text directly. Requires `pip install "pdf-tools[ocr]"` |
 | `--strip-watermarks` | Best-effort removal of large semi-transparent background shapes (common watermark pattern) before conversion |
 | `-f`, `--force` | Overwrite the output file if it already exists |
 
@@ -184,6 +194,9 @@ pdf-tools to-word report.pdf
 
 # Specify output path
 pdf-tools to-word report.pdf report.docx
+
+# Extract text from a scanned PDF using OCR
+pdf-tools to-word scan.pdf scan.docx --ocr
 
 # Remove background watermarks before conversion
 pdf-tools to-word watermarked.pdf clean.docx --strip-watermarks
@@ -209,8 +222,13 @@ Output  : report.docx
   (space-aligned) layouts.
 - Complex multi-column or heavily styled PDFs may not convert perfectly —
   this is a known limitation of PDF-to-Word conversion in general.
-- Scanned (image-only) PDFs will not produce searchable text unless the PDF
-  already contains an OCR text layer.
+- **Scanned PDFs**: without `--ocr`, scanned (image-only) pages will not
+  produce searchable text.  Pass `--ocr` to enable EasyOCR extraction.
+  When `--ocr` is used, the output is text-focused and may not preserve
+  complex layout formatting from the scanned original.  The tool
+  automatically detects mixed PDFs — pages with an existing text layer are
+  converted using that text directly, while scanned pages are processed with
+  OCR.  A warning is printed when a scanned PDF is detected without `--ocr`.
 - **Watermarks**: the `--strip-watermarks` flag removes large semi-transparent
   path shapes before conversion.  Fully opaque watermarks or text-based
   watermarks are not affected.

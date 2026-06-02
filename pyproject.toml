@@ -24,6 +24,9 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
 ]
+ocr = [
+    "easyocr>=1.7",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
