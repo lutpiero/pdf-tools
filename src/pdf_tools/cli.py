@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pdf_tools import __version__
 from pdf_tools.compress import CompressionMode, Quality
+from pdf_tools.to_word import convert_pdf_to_docx, default_word_output_path
 from pdf_tools.workflow import compress_pdf, default_output_path, format_size
 
 
@@ -54,6 +55,34 @@ def _cmd_compress(args: argparse.Namespace) -> int:
             f"larger ({-pct:.1f}%) – the source was already well-compressed."
         )
 
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Sub-command: to-word
+# ---------------------------------------------------------------------------
+
+def _cmd_to_word(args: argparse.Namespace) -> int:
+    input_path = Path(args.input)
+    output_path = (
+        Path(args.output) if args.output else default_word_output_path(input_path)
+    )
+
+    print(f"Converting '{input_path}' → '{output_path}'")
+
+    try:
+        result = convert_pdf_to_docx(
+            input_path,
+            output_path,
+            strip_watermarks=args.strip_watermarks,
+            force=args.force,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"Pages   : {result.pages}")
+    print(f"Output  : {result.output_path}")
     return 0
 
 
@@ -137,6 +166,44 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Overwrite the output file if it already exists.",
     )
     compress_parser.set_defaults(handler=_cmd_compress)
+
+    # -- to-word sub-command --
+    to_word_parser = subparsers.add_parser(
+        "to-word",
+        help="Convert a PDF to a Microsoft Word (.docx) file.",
+        description=(
+            "Convert a PDF to a .docx file, preserving headings, paragraphs, "
+            "spacing, images, and tables as closely as possible."
+        ),
+    )
+    to_word_parser.add_argument("input", metavar="INPUT", help="Path to the source PDF.")
+    to_word_parser.add_argument(
+        "output",
+        metavar="OUTPUT",
+        nargs="?",
+        default=None,
+        help=(
+            "Path for the output .docx file.  "
+            "Defaults to <input-stem>.docx in the same directory."
+        ),
+    )
+    to_word_parser.add_argument(
+        "--strip-watermarks",
+        action="store_true",
+        default=False,
+        help=(
+            "Attempt to remove background watermark elements "
+            "(large semi-transparent shapes) before conversion."
+        ),
+    )
+    to_word_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        default=False,
+        help="Overwrite the output file if it already exists.",
+    )
+    to_word_parser.set_defaults(handler=_cmd_to_word)
 
     gui_parser = subparsers.add_parser(
         "gui",
