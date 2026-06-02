@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,12 +80,132 @@ def default_word_output_path(input_path: str | Path) -> Path:
     return Path(input_path).with_suffix(".docx")
 
 
+def is_scanned_pdf(path: str | Path, *, text_threshold: int = 10) -> bool:
+    """Return ``True`` if the PDF appears to contain only scanned (image-based) pages.
+
+    A page is considered scanned when it contains fewer than *text_threshold*
+    characters of embedded text.  If every page in the document is below this
+    threshold the PDF is classified as scanned.
+
+    Args:
+        path: Path to the PDF file to inspect.
+        text_threshold: Minimum number of text characters required for a page
+            to be considered as having a text layer.  Defaults to 10.
+
+    Returns:
+        ``True`` when all pages have minimal embedded text, ``False`` when at
+        least one page contains a text layer.
+    """
+    import fitz  # PyMuPDF
+
+    doc = fitz.open(str(path))
+    try:
+        if doc.page_count == 0:
+            return False
+        for page in doc:
+            if len(page.get_text().strip()) >= text_threshold:
+                return False
+        return True
+    finally:
+        doc.close()
+
+
+def _ocr_pdf_to_docx(
+    source: Path,
+    destination: Path,
+    *,
+    languages: list[str] | None = None,
+    dpi: int = 300,
+) -> None:
+    """Convert *source* PDF to *destination* DOCX with OCR for scanned pages.
+
+    Pages that already have an embedded text layer are converted using that
+    text directly.  Pages with no embedded text (scanned pages) are rendered
+    as high-resolution images and processed with EasyOCR.
+
+    Args:
+        source: Path to the input PDF.
+        destination: Path for the output DOCX file.
+        languages: List of language codes recognised by EasyOCR (e.g.
+            ``["en", "fr"]``).  Defaults to ``["en"]``.
+        dpi: Resolution used when rendering scanned pages to images.  Higher
+            values improve OCR accuracy at the cost of more memory and time.
+            Defaults to 300.
+
+    Raises:
+        ImportError: If ``easyocr`` or ``python-docx`` are not installed.
+    """
+    try:
+        import easyocr  # type: ignore[import]
+    except ImportError as exc:
+        raise ImportError(
+            "OCR support requires the 'easyocr' package. "
+            "Install it with:  pip install \"pdf-tools[ocr]\""
+        ) from exc
+
+    try:
+        from docx import Document  # type: ignore[import]
+    except ImportError as exc:
+        raise ImportError(
+            "OCR conversion requires the 'python-docx' package. "
+            "Install it with:  pip install python-docx"
+        ) from exc
+
+    import numpy as np
+    import fitz  # PyMuPDF
+
+    reader = easyocr.Reader(languages or ["en"], verbose=False)
+
+    doc_pdf = fitz.open(str(source))
+    doc_word = Document()
+
+    try:
+        total = doc_pdf.page_count
+        for page_num, page in enumerate(doc_pdf):
+            text = page.get_text().strip()
+
+            if text:
+                # Page already has a text layer – use it directly.
+                for line in text.splitlines():
+                    stripped = line.strip()
+                    if stripped:
+                        doc_word.add_paragraph(stripped)
+            else:
+                # Scanned page – render to an image and run OCR.
+                print(
+                    f"  OCR processing page {page_num + 1}/{total}...",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                pix = page.get_pixmap(dpi=dpi)
+                # Build a NumPy array from the raw pixel samples to avoid a
+                # PNG encode/decode round-trip.
+                img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+                    pix.height, pix.width, pix.n
+                )
+                results = reader.readtext(img_array)
+                for _, ocr_text, _ in results:
+                    stripped = ocr_text.strip()
+                    if stripped:
+                        doc_word.add_paragraph(stripped)
+
+            if page_num < total - 1:
+                doc_word.add_page_break()
+    finally:
+        doc_pdf.close()
+
+    doc_word.save(str(destination))
+
+
 def convert_pdf_to_docx(
     input_path: str | Path,
     output_path: str | Path | None = None,
     *,
     strip_watermarks: bool = False,
     force: bool = False,
+    use_ocr: bool = False,
+    ocr_languages: list[str] | None = None,
+    ocr_dpi: int = 300,
 ) -> ConversionResult:
     """Convert a PDF file to a Microsoft Word ``.docx`` file.
 
@@ -96,6 +217,15 @@ def convert_pdf_to_docx(
             watermark elements (large semi-transparent shapes) from the PDF
             before conversion.
         force: Allow overwriting an existing output file.
+        use_ocr: When ``True``, use OCR (via EasyOCR) to extract text from
+            scanned pages.  Pages that already contain a text layer are
+            converted using that text directly without OCR.  Requires the
+            ``easyocr`` optional dependency (``pip install "pdf-tools[ocr]"``).
+        ocr_languages: List of EasyOCR language codes to use when *use_ocr*
+            is ``True`` (e.g. ``["en", "fr"]``).  Defaults to ``["en"]``.
+        ocr_dpi: Resolution for rendering scanned pages to images when
+            *use_ocr* is ``True``.  Higher values improve accuracy at the
+            cost of speed and memory.  Defaults to 300.
 
     Returns:
         A :class:`ConversionResult` with paths and page count.
@@ -106,6 +236,8 @@ def convert_pdf_to_docx(
         ValueError: If *input_path* is not a file.
         FileExistsError: If *output_path* already exists and *force* is
             ``False``.
+        ImportError: If *use_ocr* is ``True`` but ``easyocr`` is not
+            installed.
     """
     import fitz  # PyMuPDF
 
@@ -138,9 +270,16 @@ def convert_pdf_to_docx(
         try:
             os.close(tmp_fd)
             _strip_watermarks(source, tmp_path)
-            _do_convert(tmp_path, destination)
+            if use_ocr:
+                _ocr_pdf_to_docx(
+                    tmp_path, destination, languages=ocr_languages, dpi=ocr_dpi
+                )
+            else:
+                _do_convert(tmp_path, destination)
         finally:
             tmp_path.unlink(missing_ok=True)
+    elif use_ocr:
+        _ocr_pdf_to_docx(source, destination, languages=ocr_languages, dpi=ocr_dpi)
     else:
         _do_convert(source, destination)
 

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pdf_tools import __version__
 from pdf_tools.compress import CompressionMode, Quality
-from pdf_tools.to_word import convert_pdf_to_docx, default_word_output_path
+from pdf_tools.to_word import convert_pdf_to_docx, default_word_output_path, is_scanned_pdf
 from pdf_tools.workflow import compress_pdf, default_output_path, format_size
 
 
@@ -70,13 +70,25 @@ def _cmd_to_word(args: argparse.Namespace) -> int:
 
     print(f"Converting '{input_path}' → '{output_path}'")
 
+    if not args.ocr and input_path.exists() and input_path.is_file():
+        if is_scanned_pdf(input_path):
+            print(
+                "Warning: this PDF appears to contain only scanned pages with no "
+                "embedded text.  Use --ocr to enable OCR-based text extraction.",
+                file=sys.stderr,
+            )
+
     try:
         result = convert_pdf_to_docx(
             input_path,
             output_path,
             strip_watermarks=args.strip_watermarks,
             force=args.force,
+            use_ocr=args.ocr,
         )
+    except ImportError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     except Exception as exc:  # noqa: BLE001
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -194,6 +206,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Attempt to remove background watermark elements "
             "(large semi-transparent shapes) before conversion."
+        ),
+    )
+    to_word_parser.add_argument(
+        "--ocr",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable OCR (Optical Character Recognition) to extract text from "
+            "scanned pages.  Pages that already contain an embedded text layer "
+            "are converted using that text directly.  Requires the 'easyocr' "
+            "package: pip install \"pdf-tools[ocr]\"."
         ),
     )
     to_word_parser.add_argument(
