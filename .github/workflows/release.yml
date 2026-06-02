@@ -1,0 +1,90 @@
+name: Release executables
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target_name }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target_name: linux
+            archive_ext: tar.gz
+          - os: macos-latest
+            target_name: macos
+            archive_ext: tar.gz
+          - os: windows-latest
+            target_name: windows
+            archive_ext: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system GUI dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install . pyinstaller
+
+      - name: Build CLI executable
+        run: |
+          pyinstaller --clean --onefile --name pdf-tools src/pdf_tools/cli.py
+
+      - name: Build GUI executable
+        run: |
+          pyinstaller --clean --onefile --windowed --name pdf-tools-gui src/pdf_tools/gui.py
+
+      - name: Prepare release bundle (Linux/macOS)
+        if: runner.os != 'Windows'
+        env:
+          TARGET_NAME: ${{ matrix.target_name }}
+        run: |
+          set -euxo pipefail
+          mkdir -p release
+          cp dist/pdf-tools "release/pdf-tools-${TARGET_NAME}"
+          cp dist/pdf-tools-gui "release/pdf-tools-gui-${TARGET_NAME}"
+          tar -czf "pdf-tools-${TARGET_NAME}.tar.gz" -C release .
+
+      - name: Prepare release bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET_NAME: ${{ matrix.target_name }}
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item "dist/pdf-tools.exe" "release/pdf-tools-$env:TARGET_NAME.exe"
+          Copy-Item "dist/pdf-tools-gui.exe" "release/pdf-tools-gui-$env:TARGET_NAME.exe"
+          Compress-Archive -Path "release/*" -DestinationPath "pdf-tools-$env:TARGET_NAME.zip" -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-tools-${{ matrix.target_name }}
+          path: pdf-tools-${{ matrix.target_name }}.${{ matrix.archive_ext }}
+
+      - name: Upload release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pdf-tools-${{ matrix.target_name }}.${{ matrix.archive_ext }}
