@@ -14,6 +14,9 @@ A **standalone, cross-platform PDF tool** with both a command-line interface and
 - Optional **skip-image** flag for structure-only compression
 - Safe **in-place** overwrite support (`--force`)
 - Clear **before/after size** summary in the terminal
+- **PDF to Word** — converts PDF to `.docx`, preserving headings, paragraphs,
+  spacing, images, and tables as closely as possible
+  - Best-effort background **watermark removal** option
 - Simple **desktop GUI** built with Tkinter for Windows and Linux
 
 ---
@@ -75,7 +78,9 @@ or:
 pdf-tools gui
 ```
 
-The first GUI release focuses on PDF compression. It lets you:
+The GUI provides two tabs:
+
+**Compress tab** — lets you:
 
 - choose an input PDF
 - pick an output file
@@ -84,6 +89,14 @@ The first GUI release focuses on PDF compression. It lets you:
 - optionally skip image recompression
 - optionally overwrite an existing output file
 - read friendly success, warning, and error messages in the window
+
+**PDF to Word tab** — lets you:
+
+- choose an input PDF
+- pick an output `.docx` file (defaults to `<stem>.docx` next to the input)
+- optionally enable best-effort background watermark removal
+- optionally overwrite an existing output file
+- read friendly success and error messages in the window
 
 > If Tkinter is not installed with your Python distribution, install your
 > OS/distribution Tk package and run the GUI command again.
@@ -146,6 +159,64 @@ Saved   : 3.7 MB (77.4% smaller)
 
 ---
 
+### `to-word` — convert PDF to Microsoft Word
+
+```
+pdf-tools to-word [OPTIONS] INPUT [OUTPUT]
+```
+
+Converts a PDF to a `.docx` file, preserving headings, paragraphs, spacing,
+images, and tables as closely as possible using
+[pdf2docx](https://pdf2docx.readthedocs.io/).
+
+| Argument / Option | Description |
+|---|---|
+| `INPUT` | Path to the source PDF file |
+| `OUTPUT` *(optional)* | Path for the `.docx` output. Defaults to `<stem>.docx` next to the input |
+| `--strip-watermarks` | Best-effort removal of large semi-transparent background shapes (common watermark pattern) before conversion |
+| `-f`, `--force` | Overwrite the output file if it already exists |
+
+#### Examples
+
+```bash
+# Basic conversion (auto-named output)
+pdf-tools to-word report.pdf
+
+# Specify output path
+pdf-tools to-word report.pdf report.docx
+
+# Remove background watermarks before conversion
+pdf-tools to-word watermarked.pdf clean.docx --strip-watermarks
+
+# Overwrite an existing output file
+pdf-tools to-word report.pdf report.docx --force
+```
+
+#### Sample output
+
+```
+Converting 'report.pdf' → 'report.docx'
+Pages   : 12
+Output  : report.docx
+```
+
+#### Notes on formatting fidelity
+
+- **Headings, paragraphs, and spacing** are detected from the PDF structure
+  and mapped to Word styles where possible.
+- **Images** are extracted and embedded in the DOCX.
+- **Tables** are reconstructed from both lattice (bordered) and stream
+  (space-aligned) layouts.
+- Complex multi-column or heavily styled PDFs may not convert perfectly —
+  this is a known limitation of PDF-to-Word conversion in general.
+- Scanned (image-only) PDFs will not produce searchable text unless the PDF
+  already contains an OCR text layer.
+- **Watermarks**: the `--strip-watermarks` flag removes large semi-transparent
+  path shapes before conversion.  Fully opaque watermarks or text-based
+  watermarks are not affected.
+
+---
+
 ## Development
 
 ```bash
@@ -164,5 +235,6 @@ pytest --cov=pdf_tools
 ## Roadmap
 
 - [x] PDF compression
+- [x] PDF to Word conversion
 - [ ] PDF editing (text, annotations)
 - [ ] PDF highlighting
