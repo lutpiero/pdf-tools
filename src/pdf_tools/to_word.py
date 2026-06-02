@@ -110,7 +110,13 @@ def is_scanned_pdf(path: str | Path, *, text_threshold: int = 10) -> bool:
         doc.close()
 
 
-def _ocr_pdf_to_docx(source: Path, destination: Path) -> None:
+def _ocr_pdf_to_docx(
+    source: Path,
+    destination: Path,
+    *,
+    languages: list[str] | None = None,
+    dpi: int = 300,
+) -> None:
     """Convert *source* PDF to *destination* DOCX with OCR for scanned pages.
 
     Pages that already have an embedded text layer are converted using that
@@ -120,6 +126,11 @@ def _ocr_pdf_to_docx(source: Path, destination: Path) -> None:
     Args:
         source: Path to the input PDF.
         destination: Path for the output DOCX file.
+        languages: List of language codes recognised by EasyOCR (e.g.
+            ``["en", "fr"]``).  Defaults to ``["en"]``.
+        dpi: Resolution used when rendering scanned pages to images.  Higher
+            values improve OCR accuracy at the cost of more memory and time.
+            Defaults to 300.
 
     Raises:
         ImportError: If ``easyocr`` or ``python-docx`` are not installed.
@@ -143,7 +154,7 @@ def _ocr_pdf_to_docx(source: Path, destination: Path) -> None:
     import numpy as np
     import fitz  # PyMuPDF
 
-    reader = easyocr.Reader(["en"], verbose=False)
+    reader = easyocr.Reader(languages or ["en"], verbose=False)
 
     doc_pdf = fitz.open(str(source))
     doc_word = Document()
@@ -166,7 +177,7 @@ def _ocr_pdf_to_docx(source: Path, destination: Path) -> None:
                     file=sys.stderr,
                     flush=True,
                 )
-                pix = page.get_pixmap(dpi=300)
+                pix = page.get_pixmap(dpi=dpi)
                 # Build a NumPy array from the raw pixel samples to avoid a
                 # PNG encode/decode round-trip.
                 img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
@@ -193,6 +204,8 @@ def convert_pdf_to_docx(
     strip_watermarks: bool = False,
     force: bool = False,
     use_ocr: bool = False,
+    ocr_languages: list[str] | None = None,
+    ocr_dpi: int = 300,
 ) -> ConversionResult:
     """Convert a PDF file to a Microsoft Word ``.docx`` file.
 
@@ -208,6 +221,11 @@ def convert_pdf_to_docx(
             scanned pages.  Pages that already contain a text layer are
             converted using that text directly without OCR.  Requires the
             ``easyocr`` optional dependency (``pip install "pdf-tools[ocr]"``).
+        ocr_languages: List of EasyOCR language codes to use when *use_ocr*
+            is ``True`` (e.g. ``["en", "fr"]``).  Defaults to ``["en"]``.
+        ocr_dpi: Resolution for rendering scanned pages to images when
+            *use_ocr* is ``True``.  Higher values improve accuracy at the
+            cost of speed and memory.  Defaults to 300.
 
     Returns:
         A :class:`ConversionResult` with paths and page count.
@@ -253,13 +271,15 @@ def convert_pdf_to_docx(
             os.close(tmp_fd)
             _strip_watermarks(source, tmp_path)
             if use_ocr:
-                _ocr_pdf_to_docx(tmp_path, destination)
+                _ocr_pdf_to_docx(
+                    tmp_path, destination, languages=ocr_languages, dpi=ocr_dpi
+                )
             else:
                 _do_convert(tmp_path, destination)
         finally:
             tmp_path.unlink(missing_ok=True)
     elif use_ocr:
-        _ocr_pdf_to_docx(source, destination)
+        _ocr_pdf_to_docx(source, destination, languages=ocr_languages, dpi=ocr_dpi)
     else:
         _do_convert(source, destination)
 

@@ -339,15 +339,15 @@ class TestOcrPdfToDocx:
         self,
         tmp_scanned_pdf: Path,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ):
         out = tmp_path / "ocr_out.docx"
-        # Remove easyocr from sys.modules so the import inside the function fails.
-        monkeypatch.setitem(__import__("sys").modules, "easyocr", None)
-        from pdf_tools.to_word import _ocr_pdf_to_docx
+        # Setting sys.modules["easyocr"] to None causes Python's import
+        # machinery to raise ImportError on `import easyocr`.
+        with patch.dict("sys.modules", {"easyocr": None}):
+            from pdf_tools.to_word import _ocr_pdf_to_docx
 
-        with pytest.raises(ImportError, match="easyocr"):
-            _ocr_pdf_to_docx(tmp_scanned_pdf, out)
+            with pytest.raises(ImportError, match="easyocr"):
+                _ocr_pdf_to_docx(tmp_scanned_pdf, out)
 
     def test_convert_pdf_to_docx_with_use_ocr(
         self,
